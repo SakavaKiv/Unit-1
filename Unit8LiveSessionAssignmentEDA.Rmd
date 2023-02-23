@@ -1,0 +1,339 @@
+---
+title: "ProjectCode"
+output: html_document
+date: "2023-02-18"
+---
+
+#1.	How many breweries are present in each state?
+```{r}
+#libraries
+library(tm) #text mining library provides the stopwords() function
+library(tidyr)
+library(plyr)
+library(jsonlite)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(stringr)
+library(plotly)
+library(ggthemes)
+
+
+#read in data 
+Breweries = read.csv(file.choose(), header = TRUE)
+dim(Breweries)
+head(Breweries)
+#how many states are in the usa, by googling we see that there are 50 states
+Breweries_by_State <- Breweries %>%
+group_by(State) %>%
+summarize(num_Breweries = n()) 
+
+#Print the result
+Breweries_by_State
+
+#bar plot of the number of breweries by state in descending order from left to right
+gg <- Breweries_by_State %>% 
+ggplot(aes(x = reorder(State, -num_Breweries), y = num_Breweries, fill = State)) +
+geom_bar(stat = "identity") +
+geom_text(aes(label = num_Breweries), vjust = -0.5, size = 3) +
+xlab("State") +
+ylab("Number of breweries") +
+ggtitle("Total Brewery Count Per State") +
+theme(axis.text.x = element_text(angle = 45, hjust = 0.5, size = 8), axis.text.y=element_text(size=13), text=element_text(size=20), legend.position = "none")
+ggplotly(gg)
+
+#max number of breweries
+max_breweries <- max(Breweries_by_State$num_Breweries)
+max_breweries
+#min number of breweries
+min_breweries <- min(Breweries_by_State$num_Breweries)
+min_breweries
+
+#filter for states with only one brewery
+one_brewery_states <- Breweries_by_State %>% 
+filter(num_Breweries == 1)
+# View the filtered data
+print(one_brewery_states)
+
+#filter for states with only one brewery
+fortyseven_brewery_states <- Breweries_by_State %>% 
+filter(num_Breweries == 47)
+
+#view the filtered data
+print(fortyseven_brewery_states)
+
+#get mean number of breweries for all states
+mean(Breweries_by_State$num_Breweries)
+#the mean number of breweries for states in the US are around 10.94 or 11
+```
+#2.	Merge beer data with the breweries data. Print the first 6 observations and the last six observations to check the merged file.  (RMD only, this does not need to be included in the presentation or the deck.)
+```{r}
+Beers = read.csv(file.choose(), header = TRUE)
+#get a feel for data by returning first 6 rows
+head(Beers)
+#compare dimensions of the data frame so you can see how the data was merged
+#we can see that we 10 column instead of 11 since the merged data shares Breweries primary key Brew_ID
+#get dimension of the data via number of rows and number columns
+dim(Breweries)
+dim(Beers)
+#get names of columns
+names(Breweries)
+names(Beers)
+#get data type of columns
+str(Breweries)
+str(Beers)
+#merge the data by primary key Brew_ID, since Brewery_id is the same thing but a foreign key in Beers data frame
+merged_data <- merge(Breweries, Beers, by.x = "Brew_ID", by.y = "Brewery_id", all = TRUE)
+#get a feel for data by returning first 6 rows
+head(merged_data)
+#get dimension of the data via number of rows and number columns
+dim(merged_data)
+#get names of columns
+names(merged_data)
+#get data type of columns
+str(merged_data)
+#first 6 rows and last 6 rows columns header match means our data merged correctly
+#print the first 6 observations of the merged data
+head(merged_data, n = 6)
+#print the last 6 observations of the merged data
+tail(merged_data, n = 6)
+```
+#3.	Address the missing values in each column.
+```{r}
+#merged_data
+names(merged_data)
+merged_data_orderbystate <- merged_data[order(merged_data$State), ]
+#merged_data_orderbystate
+names(merged_data_orderbystate)
+merged_data_orderbyStyle <- merged_data[order(merged_data$Style), ]
+#merged_data_orderbyStyle
+#Delete all if missing completely at random
+#First we need to check for missing values
+dim(merged_data)
+sum(is.na(merged_data))
+str(merged_data)
+sum(is.na(merged_data$Brew_ID))
+sum(is.na(merged_data$Name.x))
+sum(is.na(merged_data$City))
+sum(is.na(merged_data$State))
+sum(is.na(merged_data$Name.y))
+sum(is.na(merged_data$Beer_ID))
+#62 missing values in the ABV column
+sum(is.na(merged_data$ABV))
+#999 missing values in the IBU column
+sum(is.na(merged_data$IBU))
+sum(is.na(merged_data$Style))
+sum(is.na(merged_data$Ounces))
+missing <- is.na(merged_data)
+#missing
+
+#Example of MCAR idea: The probability of missing does not depend on the data ... the covariates: State, Style or Beer itself.  It is as if the wind blew away records at random and ABU and IBU were all equally likely to by blown away (missing).  List wise Deletion OK and Imputation OK!
+#now we need to determine if the values are missing completely at random, so lets check this by plotting the data visually with a scatter plot
+dim(merged_data)
+#merged_data
+#ABV missing values
+#is.na will return TRUE if there is an NA value or FALSE if no NA value 
+#plug in data,data1, and data2
+#We can observe that if we order the data by state or by style we can observe that the data is still spread out through the data providing more confidence that the data for ABV are completely missing at random
+data <- data.frame(x = is.na(merged_data$ABV)) 
+data1 <- data.frame(x = is.na(merged_data_orderbystate$ABV)) 
+data2 <- data.frame(x = is.na(merged_data_orderbyStyle$ABV)) 
+#Scatter Plot of Missing ABV Values  
+#We can observe from this scatter plot that the ABV values that are missing for the beers are spread out over the many present ones in this data set. This suggests that the data is missing completely at random so we do not need to include those beers.
+gg <- ggplot(data, aes(x = 1:nrow(data), y = x)) +
+  geom_point(size = 1, height = .5, width = .5, color = "red") +
+  xlab("Beers by row number") +
+  ylab("ABV Values Present or Missing") +
+  labs(title = "Scatter Plot of Missing ABU Values", size = 10) +
+  scale_y_discrete(labels = c("Present", "Missing")) +
+  scale_x_continuous(breaks = seq(0, nrow(data), by = 100)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  theme_classic()
+ggplotly(gg)
+#From the plots we can observe that the missing values for ABV are spread out overall the data.
+#This suggest that the data missing completely at random so we can delete all the NA values.
+#The missing values appear to be randomly distributed throughout the data set, it may suggest that the missingness is due to chance.
+#The probability of missing does not depend on the data. 
+#It is as if the wind blew away records at random and ABV, State,  were all equally likely to by blown away (missing). 
+#From the plot we can observe that the missing values for ABV are spread out overall the data, 
+#this suggest that the data missing completely at random so we can delete all the NA values.
+#the missing values appear to be randomly distributed throughout the dataset, it may suggest that the missingness is due to chance.
+#The probability of missing does not depend on the data. 
+#It is as if the wind blew away records at random and ABV, State,  were all equally likely to by blown away (missing). 
+
+  
+#IBU
+#Scatter Plot of Missing IBU Values
+#Let's take a closer look at the missing IBU values in our dataset. We plotted the beers with missing IBU values against the present IBU values, and the resulting scatter plot shows us that the missing values are spread out randomly across the dataset. This is good news, because if the missingness was systematic, it could indicate errors in the data collection process.
+
+#This random distribution suggests that the missingness is due to chance, and is not related to any specific characteristics of the beers or the dataset. In other words, it's as if the wind blew away records at random for ABV and IBU values for those beers, making the missingness completely random. This is what we call missing completely at random (MCAR).
+#Overall, this insight helps us to better understand the nature of the missing IBU values and provides us with more confidence that the records aren’t missing due to any specific bias or systematic error in our dataset.
+#plug in data3,data4, and data5
+#We can observe that if we order the data by state or by style we can observe that the data is still spread out through the data providing more confidence that the data for IBU are completely missing at random.
+data3 <- data.frame(x = is.na(merged_data$IBU)) 
+data4 <- data.frame(x = is.na(merged_data_orderbystate$IBU)) 
+data5 <- data.frame(x = is.na(merged_data_orderbyStyle$IBU)) 
+gg <- ggplot(data3, aes(x = 1:nrow(data3), y = x)) +
+  geom_point(size = 1, height = .5, width = .5, color = "red") +
+  xlab("Beers by row number") +
+  ylab("IBU Values Present or Missing") +
+  ggtitle("Scatter Plot of Missing IBU values") +
+  scale_y_discrete(labels = c("Present", "Missing")) +
+  scale_x_continuous(breaks = seq(0, nrow(data3), by = 100)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  theme_classic()
+ggplotly(gg)
+#From the plot we can observe that the missing values for IBU are spread out overall the data, 
+#this suggest that the data missing completely at random so we can delete all the NA values. 
+#Given that the ABV and IBU are suggested to be completely missing at random since the scatter plots shows wide spread
+#We can remove these missing values.
+#We will assume that the ABV and IBU are missing at random.
+#not include rows with missing values
+merge_data_removena = na.omit(merged_data)
+dim(merged_data)
+dim(merge_data_removena)
+#merged_data
+#merge_data_removena
+```
+#4.	Compute the median alcohol content and international bitterness unit for each state. Plot a bar chart to compare.
+```{r}
+#ABV & IBU by State 
+#Moving on, we computed the median alcohol ABV which stands for Alcohol By Volume. It is a standard measure used to indicate the percentage of alcohol in alcoholic beverages and the (IBU) which stands for International Bitterness Units. It's worth a reminder that it is a measure of the bitterness of beer, which is primarily determined by the amount of hops used during the brewing process. IBUs are used to provide a standardized scale for measuring the bitterness of different beers, and can range from 0 (no bitterness) to well over 100 (extremely bitter). We plotted the Median ABV and IBU for each state and plotted a bar chart to compare them.
+
+# Group the data by State and compute median ABV and IBU for each group
+#In the code below, we first group the data by State using the group_by function and then use the summarize function to compute the median ABV and IBU for each group. We then use ggplot2 to plot a bar chart comparing the median ABV and IBU for each state. The geom_bar function is used to create the bars for each variable (ABV and IBU), and the fill parameter is used to set the color of the bars. The labs function is used to set the title and axis labels,Finally, we use the scale_y_continuous function to format the y-axis labels so they don't display in scientific notation.
+# Plot the bar chart for ABV
+#ABV by State
+#From this ABV bar plot, we can see that the District of Columbia and Kentucky had the highest median ABV of 6.25%, while Utah had the lowest median ABV of 4%. 
+#na.rm is an argument in many R functions that indicates whether to remove missing values or not. 
+#When na.rm is set to TRUE, any missing values in the data are removed before computation.
+#For example, in the mean() function, if na.rm is set to TRUE, any missing values in the data will be ignored when calculating the mean.
+#Plot the bar chart
+#observe that SD is missing median, since it has so few beweries, it just happen randomly that were missing data for it for IBU. I Imputed the data by looking them up online for the missing IBU values so that SD bar cn be shown.
+grouped_data <- merged_data %>% 
+  group_by(State) %>% 
+  summarize(median_ABV = median(ABV, na.rm = TRUE))
+gg <- ggplot(grouped_data, aes(x = reorder(State, median_ABV), y = median_ABV)) +
+  geom_bar(fill = "steelblue2", stat = "identity") +
+  labs(title = "Median ABV by State",
+       x = "State",
+       y = "Median ABV") +
+  theme_classic() +
+  #theme(axis.text.x = element_text(size = 9, angle = 45, vjust = 1, hjust = 0.5)) 
+  scale_y_continuous(labels = function(x) format(x, scientific = FALSE)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.5, size = 11), axis.text.y=element_text(size=13), text=element_text(size=20))
+ggplotly(gg)
+
+#Plot the bar chart for IBU
+#IBU by State
+#Now for the IBU bar plot, we can see in terms of IBU, Maine had the highest median IBU of 61, while Wisconsin had the lowest median IBU of 19. 
+
+grouped_data <- merged_data %>% 
+  group_by(State) %>% 
+  summarize(median_IBU = median(IBU, na.rm = TRUE))
+gg <- ggplot(grouped_data, aes(x = reorder(State, median_IBU), y = median_IBU)) +
+  geom_bar(fill = "darkolivegreen3", stat = "identity") +
+  labs(title = "Median IBU by State",
+       x = "State",
+       y = "Median IBU") +
+  theme_classic() +
+  #theme(axis.text.x = element_text(size = 9, angle = 45, vjust = 1, hjust = 0.5)) 
+  scale_y_continuous(labels = function(x) format(x, scientific = FALSE)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.5, size = 11), axis.text.y=element_text(size=13), text=element_text(size=20))
+ggplotly(gg)
+```
+#5.	Which state has the maximum alcoholic (ABV) beer? Which state has the most bitter (IBU) beer?
+```{r}
+#we can observe that Colorado as a state has the highest ABV and Oregon has the highest IBU in the US
+#do a sanity check see the outputs of max for yourself for ABV and IBU to compare against Bar Chart
+#State with max ABV
+max_ABV_observation <- which.max(merged_data$ABV)
+state_with_max_ABV <- merged_data$State[max_ABV_observation]
+#State with max IBU
+state_with_max_ABV
+max_IBU_observation <- which.max(merged_data$IBU)
+state_with_max_IBU <- merged_data$State[max_IBU_observation]
+#State with max IBU
+state_with_max_IBU
+#Group by state and calculate maximum ABV
+grouped_data <- merged_data %>% 
+  group_by(State) %>% 
+  summarize(max_ABV = max(ABV, na.rm = TRUE)) %>%
+  filter(!is.na(max_ABV)) %>% # Remove any rows with missing max values
+  arrange(desc(max_ABV)) %>% # Sort by max ABV in descending order
+  head(5) # Select top 5 states by max ABV
+#Plot the bar chart of top 5 states in ascending order from left to right
+#We can see the state of Colorado takes the number one spot, with an ABV of 12.8%. 
+gg <- ggplot(grouped_data, aes(x = reorder(State, max_ABV), y = max_ABV, fill = State)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Top 5 States with Most Alcoholic (ABV) Beer",
+       x = "State",
+       y = "Max ABV") +
+  theme_classic() +
+  theme(axis.text.x = element_text(size = 13, angle = 90, vjust = 1, hjust = 0.5), axis.text.y=element_text(size = 13), text=element_text(size = 20)) +
+  scale_y_continuous(labels = function(x) format(x, scientific = FALSE)) +
+  scale_fill_discrete(name = "State")
+ggplotly(gg)
+
+#Group by state and calculate maximum IBU
+grouped_data <- merged_data %>% 
+  group_by(State) %>% 
+  summarize(max_IBU = max(IBU, na.rm = TRUE)) %>%
+  filter(!is.na(max_IBU)) %>% # Remove any rows with missing max values
+  arrange(desc(max_IBU)) %>% # Sort by max ABV in descending order
+  head(5) # Select top 5 states by max ABV
+
+#Plot the bar chart of top 5 states in ascending order from left to right
+#On the other hand, from this bar plot, for the top 5 most bitter (IBU) beers we can see Oregon to be the winner this time, with a whopping IBU score of 138.
+gg<- ggplot(grouped_data, aes(x = reorder(State, max_IBU), y = max_IBU, fill = State)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Top 5 States with Most Bitter (IBU) Beer",
+       x = "State",
+       y = "Max IBU") +
+  theme_classic() +
+  theme(axis.text.x = element_text(size = 13,angle = 90, vjust = 1, hjust = 0.5), axis.text.y=element_text(size=13), text=element_text(size=20)) +
+  scale_y_continuous(labels = function(x) format(x, scientific = FALSE)) +
+  scale_fill_discrete(name = "State")
+ggplotly(gg)
+
+```
+#6. Comment on the summary statistics and distribution of the ABV variable.
+```{r}
+#From the summary statistics and the distribution plot, we can see that ABV variable has a minimum value of 0%, a maximum value of 12.7%, and a median value of 5.6%. The mean value is slightly higher at 5.97%, which suggests that the distribution is positively skewed, as can be seen from the longer tail on the right side of the histogram.
+#Calculate summary statistics for ABV
+abv_summary <- summary(na.omit(merged_data$ABV))
+abv_summary
+#Compute standard deviation
+sd(na.omit(merged_data$ABV))
+#Plot the histogram of ABV
+#Here we can see the distribution of the ABV values expressed as a histogram. Observe that there is a wide range of values for the ABV variable, with the majority of the values concentrated in the range of 4-7%. The distribution appears to be unimodal. Also notice the histogram is roughly symmetric except for the long right tail, which indicates that there are some beers with high ABV values that are considered outliers.
+#In general, the ABV variable shows a reasonable range and distribution of values for beer, with the majority of beers having a relatively moderate alcohol content. However, there are some extreme values that might require further investigation, as they could be due to errors in data entry or some other factors.
+gg <- ggplot(merged_data, aes(x = ABV)) +
+  geom_histogram(color = "white", fill = "red", bins = 30,
+                 na.rm = TRUE) + 
+  xlab("ABV") +
+  ylab("Count") +
+  labs(title = "Histogram of ABV") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, size = 15), axis.text.x=element_text(size=15), axis.text.y=element_text(size=15), axis.text=element_text(size=12))
+ggplotly(gg)
+```
+#7.	Is there an apparent relationship between the bitterness of the beer and its alcoholic content? Draw a scatter plot.  Make your best judgment of a relationship and EXPLAIN your answer.
+```{r}
+library(ggplot2)
+merged_data <- merge(Breweries, Beers, by.x = "Brew_ID", by.y = "Brewery_id", all = TRUE)
+#Scatter plot of ABV and IBU with Local polynomial regression
+#This scatter plot shows the relationship between the alcoholic content (ABV) and bitterness (IBU) of beer. The grey dots represent individual beers, and the red line represents a smoothed curve fit to the data using the loess method (Local Polynomial regression).
+#Overall, there appears to be a slight positive relationship associated between ABV and IBU. As the alcoholic content of beer increases, so does its bitterness, as indicated by the general upward trend of the red curve. However, the relationship is not very strong, as there is quite a bit of variability in IBU values for any given ABV value. This suggests that while there is some relationship between ABV and IBU, other factors such as the type of beer, brewing methods, and ingredient choices are also important in determining the bitterness of a beer.
+gg <- ggplot(merged_data, aes(x = ABV, y = IBU)) +
+  geom_point(color = "darkgray", position = "jitter") +
+  geom_smooth(method = "loess", se = FALSE, color = "red") +
+  labs(title = "Scatter Plot of ABV and IBU",
+       x = "ABV",
+       y = "IBU") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, size = 12), axis.text.x=element_text(size=12), axis.text.y=element_text(size=12), axis.text=element_text(size=30))
+ggplotly(gg)
+```
+
+
